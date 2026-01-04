@@ -21,8 +21,7 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        channel: 'stable'
-        flutter-version: '3.22.0'
+        channel: 'stable' # Pega sempre a versão mais nova do Flutter
 
     - name: Install Dependencies
       run: |
@@ -31,8 +30,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Build APK with Flet
+      # O comando 'yes' digita 'y' automaticamente se aparecer alguma pergunta
       run: |
-        flet build apk --verbose
+        yes | flet build apk --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
