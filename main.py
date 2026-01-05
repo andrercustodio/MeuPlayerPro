@@ -2,7 +2,6 @@ import flet as ft
 import yt_dlp
 import time
 import threading
-import random
 import traceback
 
 # --- CLASSE DE LÓGICA (O "CÉREBRO" DO APP) ---
@@ -17,9 +16,12 @@ class AudioController:
         # Injeta o audio na página (Overlay)
         if self.audio_widget:
             self.page.overlay.append(self.audio_widget)
-            self.page.update()
+            try:
+                self.page.update()
+            except: pass
 
     def _criar_audio_widget(self):
+        # Tenta criar o componente de áudio de forma segura
         try:
             return ft.Audio(
                 autoplay=False,
@@ -27,7 +29,9 @@ class AudioController:
                 on_position_changed=self._on_position_change,
                 on_state_changed=self._on_state_change
             )
-        except: return None
+        except Exception as e:
+            print(f"Erro ao criar Audio: {e}")
+            return None
 
     def _on_position_change(self, e):
         self.page.pubsub.send_all({"tipo": "progresso", "ms": int(e.data)})
@@ -132,16 +136,21 @@ class AudioController:
 class PlayerUI(ft.Column):
     def __init__(self, page):
         super().__init__()
-        # CORREÇÃO AQUI: Usamos 'self.pg' em vez de 'self.page' para evitar conflito
+        # CORREÇÃO CRÍTICA: Usamos self.pg para não conflitar com o Flet
         self.pg = page 
         self.expand = True 
         self.controller = AudioController(self.pg)
         
-        # Inscreve para receber atualizações
         self.pg.pubsub.subscribe(self.on_message)
 
-        # --- CRIAÇÃO DOS ELEMENTOS VISUAIS ---
-        self.img_capa = ft.Image(src="https://img.icons8.com/fluency/240/music-record.png", width=140, height=140, border_radius=10, fit="cover")
+        # Imagem com correção de 'fit' (string simples evita erro de ImageFit)
+        self.img_capa = ft.Image(
+            src="https://img.icons8.com/fluency/240/music-record.png", 
+            width=140, height=140, 
+            border_radius=10, 
+            fit="cover" 
+        )
+        
         self.lbl_titulo = ft.Text("Selecione uma música", size=16, weight="bold", text_align="center")
         self.lbl_status = ft.Text("Aguardando", size=12, color="grey", text_align="center")
         self.lbl_tempo = ft.Text("00:00", size=10)
@@ -150,27 +159,22 @@ class PlayerUI(ft.Column):
         self.txt_url = ft.TextField(hint_text="Link YouTube", text_size=12, expand=True, height=45, border_radius=10, bgcolor="#222222", border_width=0)
         self.btn_import = ft.IconButton(ft.Icons.DOWNLOAD_ROUNDED, icon_color="blue", bgcolor="#222222", on_click=self.acao_importar)
         
-        # Controles
         self.btn_prev = ft.IconButton(ft.Icons.SKIP_PREVIOUS_ROUNDED, icon_size=30, on_click=lambda e: self.controller.anterior())
         self.btn_play = ft.IconButton(ft.Icons.PLAY_CIRCLE_FILLED_ROUNDED, icon_size=60, icon_color="blue", on_click=self.acao_play_pause)
         self.btn_next = ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_size=30, on_click=lambda e: self.controller.proxima())
         
-        # Lista
         self.lista_view = ft.Column(spacing=2, scroll="auto")
         self.container_lista = ft.Container(content=self.lista_view, expand=True, bgcolor="#0A0A0A", border_radius=15, padding=10)
 
-        # --- MONTAGEM DO LAYOUT ---
         self.controls = [
             ft.Container(height=10),
             ft.Text("PLAYER PRO V3", size=12, weight="bold", color="blue", text_align="center"),
             
-            # Área de Importação
             ft.Container(
                 content=ft.Row([self.txt_url, self.btn_import]),
                 padding=10
             ),
             
-            # Área do Player
             ft.Container(
                 content=ft.Column([
                     ft.Row([self.img_capa], alignment="center"),
@@ -188,12 +192,10 @@ class PlayerUI(ft.Column):
             
             ft.Divider(height=1, color="#333333"),
             
-            # Lista de Músicas
             ft.Text("  Sua Playlist:", size=12, color="grey"),
             self.container_lista
         ]
 
-        # Carregar dados iniciais
         self.controller.carregar_memoria()
         self.renderizar_lista()
 
@@ -309,6 +311,7 @@ def main(page: ft.Page):
     page.bgcolor = "black"
     page.theme_mode = "dark"
     page.padding = 0
+    # Ajuste para telas mobile
     page.window_width = 390
     page.window_height = 800
     
