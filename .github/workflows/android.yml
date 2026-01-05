@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches:
-      - main  # Ou 'master', dependendo do nome da sua branch principal
+      - main
 
 jobs:
   build:
@@ -13,22 +13,38 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # 1. Configura o Python
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
 
+    # 2. Configura o Java (Necessário para construir para Android)
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    # 3. SOLUÇÃO DO ERRO: Instala o Flutter antes do Flet pedir
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+        flutter-version: '3.27.0' # Versão estável recente
+
+    # 4. Instala as dependências do seu projeto
     - name: Install Dependencies
       run: |
         pip install -r requirements.txt
         pip install flet
 
+    # 5. Constrói o APK (Agora sem perguntar nada)
     - name: Flet Build APK
-      # Este comando usa a ferramenta oficial do Flet para construir o APK
-      # Ele lê o requirements.txt automaticamente
       run: |
         flet build apk --verbose
-        
+
+    # 6. Faz o upload do arquivo gerado
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
