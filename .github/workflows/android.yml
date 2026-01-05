@@ -19,32 +19,26 @@ jobs:
       with:
         python-version: '3.11'
 
-    # 2. Configura o Java (Necessário para construir para Android)
+    # 2. Configura o Java (Necessário para o Android)
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    # 3. SOLUÇÃO DO ERRO: Instala o Flutter antes do Flet pedir
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        channel: 'stable'
-        flutter-version: '3.27.0' # Versão estável recente
-
-    # 4. Instala as dependências do seu projeto
+    # 3. Instala as dependências
     - name: Install Dependencies
       run: |
         pip install -r requirements.txt
         pip install flet
 
-    # 5. Constrói o APK (Agora sem perguntar nada)
+    # 4. Constrói o APK forçando o "Sim" (yes)
+    # O comando "yes" responde "y" automaticamente para a pergunta do Flet
     - name: Flet Build APK
       run: |
-        flet build apk --verbose
+        yes | flet build apk --verbose
 
-    # 6. Faz o upload do arquivo gerado
+    # 5. Faz o upload do arquivo gerado
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
