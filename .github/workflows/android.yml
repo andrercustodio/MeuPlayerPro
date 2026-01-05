@@ -13,7 +13,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # Mudamos para o Java Zulu que é mais estável para Android
+    # Java Zulu (Mais estável para build Android)
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
@@ -41,9 +41,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Build APK with Flet
-      # Adicionei --include-packages para garantir que o Flet empacote tudo
+      # Voltamos ao comando padrão que funciona
       run: |
-        flet build apk --verbose --include-packages flet,yt-dlp,certifi
+        flet build apk --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
