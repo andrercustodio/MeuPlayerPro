@@ -1,0 +1,9 @@
+[app]
+name = "PlayerPro"
+org = "com.seunome.playerpro"
+version = "3.0.0"
+description = "Player de Música com YouTube"
+
+[android]
+# Permissões extras se necessário (Internet já é padrão)
+permissions = ["android.permission.INTERNET"]
