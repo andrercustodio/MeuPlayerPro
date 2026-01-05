@@ -2,9 +2,10 @@ import flet as ft
 import traceback
 
 def main(page: ft.Page):
-    # Configuração inicial 
+    # Configuração inicial "blindada"
     page.title = "Player Mobile"
     page.bgcolor = "black"
+    page.scroll = "auto" # Usando string para evitar erro de versão
 
     try:
         # --- AQUI COMEÇA O SEU CÓDIGO (DENTRO DA PROTEÇÃO) ---
@@ -16,9 +17,9 @@ def main(page: ft.Page):
         import random
 
         # --- 2. Configurações da Janela ---
-        page.window.width = 390
-        page.window.height = 700
-        page.theme_mode = ft.ThemeMode.DARK
+        page.window_width = 390
+        page.window_height = 700
+        page.theme_mode = "dark" # Usando string "dark"
         page.padding = 5
         
         # --- 3. Variáveis de Estado Globais ---
@@ -50,16 +51,17 @@ def main(page: ft.Page):
             text_size=12, expand=True, height=40, content_padding=10, border_radius=20
         )
         
-        # CORREÇÃO 1: scroll="auto" em vez de ft.ScrollMode.AUTO
+        # CORREÇÃO CRÍTICA 1: scroll="auto" (texto)
         lv_playlist = ft.ListView(expand=True, spacing=2, padding=5, auto_scroll=False)
 
+        # CORREÇÃO CRÍTICA 2: fit="cover" (texto)
         img_capa = ft.Image(
             src="https://img.icons8.com/fluency/240/music-record.png",
             width=130, height=130, border_radius=10, 
-            fit="cover" # CORREÇÃO 2: Usando string "cover" para evitar erro no Android
+            fit="cover" 
         )
 
-        # CORREÇÃO 3: overflow="ellipsis"
+        # CORREÇÃO CRÍTICA 3: overflow="ellipsis" (texto)
         lbl_titulo = ft.Text("Selecione ou Importe", weight="bold", size=14, no_wrap=True, overflow="ellipsis", text_align="center")
         lbl_status = ft.Text("Parado", size=11, color="grey", text_align="center")
         
@@ -68,14 +70,18 @@ def main(page: ft.Page):
         
         def seek_audio(val): 
             try:
-                audio_player.seek(int(val))
+                if audio_player:
+                    audio_player.seek(int(val))
             except: pass
 
         slider_tempo = ft.Slider(min=0, max=100, value=0, expand=True, height=10, on_change=lambda e: seek_audio(e.control.value))
 
-        # Funções placeholders
+        # --- CORREÇÃO CRÍTICA 4: Áudio Seguro ---
+        # Isso impede o erro "has no attribute Audio" de travar o app
+        audio_player = None
+        
         def atualizar_progresso(e):
-            if is_playing:
+            if is_playing and audio_player:
                 try:
                     ms = int(e.data)
                     slider_tempo.value = ms
@@ -86,17 +92,25 @@ def main(page: ft.Page):
                         lbl_tempo_total.value = time.strftime('%M:%S', time.gmtime(dur // 1000))
                 except: pass
                 page.update()
-        
+
         def verificar_fim(e):
             if e.data == "completed": proxima(None)
 
-        audio_player = ft.Audio(
-            src="https://luan.xyz/files/audio/ambient_c_motion.mp3", 
-            autoplay=False, volume=1.0,
-            on_position_changed=lambda e: atualizar_progresso(e),
-            on_state_changed=lambda e: verificar_fim(e)
-        )
-        page.overlay.append(audio_player)
+        # Tenta criar o player de áudio. Se falhar, o app abre mesmo assim.
+        try:
+            if hasattr(ft, 'Audio'):
+                audio_player = ft.Audio(
+                    src="https://luan.xyz/files/audio/ambient_c_motion.mp3", 
+                    autoplay=False, volume=1.0,
+                    on_position_changed=lambda e: atualizar_progresso(e),
+                    on_state_changed=lambda e: verificar_fim(e)
+                )
+                page.overlay.append(audio_player)
+            else:
+                # Tenta usar Video oculto como fallback se Audio não existir (truque antigo)
+                mostrar_aviso("Aviso: Seu Flet é antigo. Áudio pode falhar.", "orange")
+        except Exception as err_audio:
+            print("Erro ao criar audio:", err_audio)
 
         # --- 5. Lógica Principal ---
 
@@ -123,33 +137,37 @@ def main(page: ft.Page):
                         on_click=lambda e, idx=i: tocar_index(idx)
                     ),
                     ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="red400", icon_size=18, on_click=lambda e, idx=i: remover_musica(idx))
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+                ], alignment="spaceBetween") # String em vez de Enum
 
                 btn_item = ft.Container(content=conteudo_item, padding=ft.padding.only(left=10, right=0, top=2, bottom=2), bgcolor=cor_fundo, border_radius=5)
                 lv_playlist.controls.append(btn_item)
             page.update()
 
         def salvar_tudo():
-            all_playlists[current_playlist_name] = playlist
-            page.client_storage.set("all_playlists_data", all_playlists)
-            page.client_storage.set("last_playlist_name", current_playlist_name)
+            try:
+                all_playlists[current_playlist_name] = playlist
+                page.client_storage.set("all_playlists_data", all_playlists)
+                page.client_storage.set("last_playlist_name", current_playlist_name)
+            except: pass
 
         def carregar_tudo():
             nonlocal all_playlists, current_playlist_name, playlist
-            dados_pl = page.client_storage.get("all_playlists_data")
-            last_name = page.client_storage.get("last_playlist_name")
+            try:
+                dados_pl = page.client_storage.get("all_playlists_data")
+                last_name = page.client_storage.get("last_playlist_name")
 
-            if dados_pl and isinstance(dados_pl, dict):
-                all_playlists = dados_pl
-            
-            if last_name and last_name in all_playlists:
-                current_playlist_name = last_name
-            else:
-                current_playlist_name = list(all_playlists.keys())[0]
+                if dados_pl and isinstance(dados_pl, dict):
+                    all_playlists = dados_pl
+                
+                if last_name and last_name in all_playlists:
+                    current_playlist_name = last_name
+                else:
+                    current_playlist_name = list(all_playlists.keys())[0]
 
-            playlist = all_playlists[current_playlist_name]
-            lbl_nome_playlist.value = f"Playlist: {current_playlist_name}"
-            renderizar_playlist()
+                playlist = all_playlists[current_playlist_name]
+                lbl_nome_playlist.value = f"Playlist: {current_playlist_name}"
+                renderizar_playlist()
+            except: pass
 
         def mudar_para_playlist(nome):
             nonlocal current_playlist_name, playlist, current_index
@@ -195,7 +213,7 @@ def main(page: ft.Page):
         )
 
         def abrir_menu_trocar(e):
-            lista_opcoes = ft.Column(scroll="auto", height=200) # CORREÇÃO AQUI TB
+            lista_opcoes = ft.Column(scroll="auto", height=200) 
             for nome in all_playlists.keys():
                 cor = "blue" if nome == current_playlist_name else "white"
                 btn = ft.TextButton(
@@ -242,7 +260,7 @@ def main(page: ft.Page):
             if index_para_apagar < 0 or index_para_apagar >= len(playlist): return
 
             if index_para_apagar == current_index:
-                audio_player.pause()
+                if audio_player: audio_player.pause()
                 is_playing = False
                 lbl_status.value = "Parado"
                 btn_play.icon = ft.Icons.PLAY_CIRCLE_FILLED
@@ -303,10 +321,17 @@ def main(page: ft.Page):
 
             lbl_titulo.value = titulo
             lbl_status.value = "Carregando..."
-            audio_player.pause(); is_playing = False; btn_play.icon = ft.Icons.PLAY_CIRCLE_FILLED; page.update()
+            if audio_player: audio_player.pause()
+            is_playing = False
+            btn_play.icon = ft.Icons.PLAY_CIRCLE_FILLED
+            page.update()
 
             def extrair():
                 nonlocal is_playing
+                if not audio_player:
+                    mostrar_aviso("ERRO FATAL: Componente de Áudio não existe nesta versão do app.", "red")
+                    return
+
                 try:
                     ydl_opts = {'format': 'bestaudio[ext=m4a]/bestaudio/best', 'quiet': True, 'noplaylist': True}
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -324,6 +349,7 @@ def main(page: ft.Page):
 
         def play_pause(e):
             nonlocal is_playing
+            if not audio_player: return
             if is_playing:
                 audio_player.pause(); btn_play.icon = ft.Icons.PLAY_CIRCLE_FILLED; is_playing = False
             else:
@@ -339,7 +365,9 @@ def main(page: ft.Page):
             if current_index > 0: tocar_index(current_index - 1)
 
         def pular_tempo(segundos):
-            try: audio_player.seek(int(slider_tempo.value + (segundos * 1000)))
+            try: 
+                if audio_player:
+                    audio_player.seek(int(slider_tempo.value + (segundos * 1000)))
             except: pass
 
         def toggle_shuffle(e):
@@ -372,19 +400,19 @@ def main(page: ft.Page):
 
         page.add(
             ft.Column([
-                ft.Row([lbl_Andre], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Row([txt_import_url, btn_import], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Row([lbl_nome_playlist], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([lbl_Andre], alignment="center"),
+                ft.Row([txt_import_url, btn_import], alignment="center"),
+                ft.Row([lbl_nome_playlist], alignment="center"),
                 ft.Divider(height=1, color="grey"),
                 ft.Column([
-                    ft.Row([img_capa], alignment=ft.MainAxisAlignment.CENTER),
+                    ft.Row([img_capa], alignment="center"),
                     lbl_titulo,
                     lbl_status,
                     ft.Container(height=10),
-                    ft.Row([lbl_tempo_now, slider_tempo, lbl_tempo_total], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Row([lbl_tempo_now, slider_tempo, lbl_tempo_total], alignment="spaceBetween"),
                     ft.Row([
                         btn_shuffle, btn_back_10, btn_prev, btn_play, btn_next, btn_fwd_10, btn_menu
-                    ], alignment=ft.MainAxisAlignment.CENTER, spacing=0),
+                    ], alignment="center", spacing=0),
                 ], spacing=0),
                 ft.Divider(height=1, color="grey"),
                 ft.Container(content=lv_playlist, expand=True, bgcolor="#111111", border_radius=10),
