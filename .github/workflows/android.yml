@@ -13,6 +13,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
@@ -21,7 +27,11 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        channel: 'stable' # Pega sempre a versão mais nova do Flutter
+        channel: 'stable'
+
+    - name: Accept Android Licenses
+      run: |
+        yes | flutter doctor --android-licenses
 
     - name: Install Dependencies
       run: |
@@ -30,9 +40,8 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Build APK with Flet
-      # O comando 'yes' digita 'y' automaticamente se aparecer alguma pergunta
       run: |
-        yes | flet build apk --verbose
+        flet build apk --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
