@@ -20,14 +20,14 @@ def main(page: ft.Page):
         import threading
         import random
 
-        # Variáveis Globais
+        # Variáveis Globais (dentro do main)
         all_playlists = {"Principal": []} 
         current_playlist_name = "Principal"
         playlist = [] 
         current_index = 0   
         is_playing = False
         is_shuffled = False
-        audio_player = None # Variável do player
+        audio_player = None 
 
         # --- UI Elementos ---
         
@@ -39,21 +39,20 @@ def main(page: ft.Page):
             snack_aviso.bgcolor = cor
             snack_aviso.open = True
             page.update()
-        
-        lbl_Andre0 = ft.Text("                          ", color="grey", weight="bold", size=14, text_align="center")
+
         lbl_nome_playlist = ft.Text(f"Playlist: {current_playlist_name}", size=12, color="blue200", weight="bold")
+        lbl_Andre0 = ft.Text("                                  ", color="grey", weight="bold", size=14, text_align="center")
         lbl_Andre = ft.Text("Player Mobile - André R. Custódio 😜", color="grey", weight="bold", size=14, text_align="center")
         
         txt_import_url = ft.TextField(
             hint_text="Link...", text_size=12, expand=True, height=40, content_padding=10, border_radius=15
         )
         
-        # Lista otimizada sem auto_scroll para performance
         lv_playlist = ft.ListView(expand=True, spacing=0, padding=0, auto_scroll=False)
 
         img_capa = ft.Image(
             src="https://img.icons8.com/fluency/240/music-record.png",
-            width=100, height=100, border_radius=5, # Capa menor carrega mais rápido
+            width=100, height=100, border_radius=5, 
             fit="cover" 
         )
 
@@ -72,14 +71,12 @@ def main(page: ft.Page):
         slider_tempo = ft.Slider(min=0, max=100, value=0, expand=True, height=20, on_change=lambda e: seek_audio(e.control.value))
 
         def atualizar_progresso(e):
-            # Otimização: Só atualiza se estiver tocando
             if is_playing and audio_player:
                 try:
                     ms = int(e.data)
                     slider_tempo.value = ms
                     lbl_tempo_now.value = time.strftime('%M:%S', time.gmtime(ms // 1000))
-                    # Duração total não atualizamos toda hora para poupar CPU
-                    if slider_tempo.max == 100: # Só ajusta se não tiver ajustado
+                    if slider_tempo.max == 100: 
                         dur = audio_player.get_duration()
                         if dur: slider_tempo.max = dur
                 except: pass
@@ -88,7 +85,6 @@ def main(page: ft.Page):
         def verificar_fim(e):
             if e.data == "completed": proxima(None)
 
-        # Inicialização do Audio Player
         try:
             if hasattr(ft, 'Audio'):
                 audio_player = ft.Audio(
@@ -103,24 +99,20 @@ def main(page: ft.Page):
         # --- Funções Principais ---
 
         def renderizar_playlist():
-            # OTIMIZAÇÃO: Renderização simplificada
             lv_playlist.controls.clear()
             
             if not playlist:
                 lv_playlist.controls.append(ft.Text("Vazia.", color="grey", size=12))
             else:
                 for i, item in enumerate(playlist):
-                    # Tenta pegar só o titulo rapido
                     try:
                         titulo = item.split(" - ", 1)[1]
                     except: titulo = item
 
-                    # Se for a musica atual, muda a cor
                     eh_atual = (i == current_index)
                     cor_texto = "green" if eh_atual else "white"
                     icone = ft.Icons.PLAY_ARROW if eh_atual else ft.Icons.MUSIC_NOTE
 
-                    # Layout simplificado (Row simples) carrega mais rápido que Containers aninhados
                     linha = ft.TextButton(
                         content=ft.Row([
                             ft.Icon(icone, size=14, color=cor_texto),
@@ -133,7 +125,11 @@ def main(page: ft.Page):
                     lv_playlist.controls.append(linha)
             page.update()
 
+        # --- AQUI ESTAVA O ERRO, AGORA CORRIGIDO ---
         def salvar_carregar(acao):
+            # A declaração nonlocal deve ser a PRIMEIRA coisa
+            nonlocal all_playlists, current_playlist_name, playlist
+            
             try:
                 if acao == "salvar":
                     all_playlists[current_playlist_name] = playlist
@@ -143,7 +139,6 @@ def main(page: ft.Page):
                     d = page.client_storage.get("pl_data")
                     l = page.client_storage.get("last_pl")
                     if d: 
-                        nonlocal all_playlists, current_playlist_name, playlist
                         all_playlists = d
                         if l and l in all_playlists: current_playlist_name = l
                         else: current_playlist_name = list(all_playlists.keys())[0]
@@ -160,7 +155,6 @@ def main(page: ft.Page):
 
             def processar():
                 nonlocal playlist
-                # OTIMIZAÇÃO: 'extract_flat' e 'skip_download' para ser rapido
                 opts = {'extract_flat': True, 'quiet': True, 'no_warnings': True, 'ignoreerrors': True}
                 try:
                     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -190,7 +184,7 @@ def main(page: ft.Page):
             if not playlist or index < 0 or index >= len(playlist): return
             
             current_index = index
-            renderizar_playlist() # Atualiza visual da lista
+            renderizar_playlist()
             
             raw_item = playlist[current_index]
             link = raw_item.split(" - ")[0]
@@ -205,14 +199,13 @@ def main(page: ft.Page):
                 nonlocal is_playing
                 if not audio_player: return
                 try:
-                    # OTIMIZAÇÃO MÁXIMA DO YT_DLP
                     ydl_opts = {
-                        'format': 'bestaudio', # Pega qualquer audio bom (não filtra m4a pra ser rapido)
+                        'format': 'bestaudio', 
                         'quiet': True,
                         'no_warnings': True,
-                        'nocheckcertificate': True, # Ignora SSL (mais rapido)
+                        'nocheckcertificate': True, 
                         'noplaylist': True,
-                        'socket_timeout': 10 # Desiste se a net travar
+                        'socket_timeout': 10
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info = ydl.extract_info(link, download=False)
@@ -222,7 +215,6 @@ def main(page: ft.Page):
                         if info.get('thumbnail'): img_capa.src = info['thumbnail']
                         
                         audio_player.update()
-                        # Sleep reduzido de 0.5 para 0.1
                         time.sleep(0.1) 
                         audio_player.play()
                         
@@ -276,17 +268,15 @@ def main(page: ft.Page):
                 salvar_carregar("salvar")
                 renderizar_playlist()
 
-        # --- Montagem Simples (Menos aninhamento = Mais FPS) ---
+        # --- Montagem Simples ---
         
         btn_import = ft.IconButton(ft.Icons.DOWNLOAD, on_click=importar_link, icon_color="blue")
         
-        # Botoes de controle compactos
         btn_prev = ft.IconButton(ft.Icons.SKIP_PREVIOUS, on_click=lambda e: controles("prev"))
         btn_play = ft.IconButton(ft.Icons.PLAY_CIRCLE_FILLED, icon_size=50, icon_color="blue", on_click=lambda e: controles("play"))
         btn_next = ft.IconButton(ft.Icons.SKIP_NEXT, on_click=lambda e: controles("next"))
         btn_shuffle = ft.IconButton(ft.Icons.SHUFFLE, icon_size=20, on_click=lambda e: controles("shuffle"))
 
-        # Menu simplificado antigo
         btn_menu = ft.PopupMenuButton(
             icon=ft.Icons.MORE_VERT,
             items=[
@@ -299,7 +289,6 @@ def main(page: ft.Page):
             renderizar_playlist()
             salvar_carregar("salvar")
 
-        # Adicionar elementos na página
         page.add(
             ft.Column([
                 ft.Row([lbl_Andre0], alignment="center"),
@@ -308,7 +297,6 @@ def main(page: ft.Page):
                 ft.Row([lbl_nome_playlist], alignment="center"),
                 ft.Divider(height=1, color="#333333"),
                 
-                # Area do Player
                 ft.Row([
                     img_capa,
                     ft.Column([
@@ -323,7 +311,6 @@ def main(page: ft.Page):
                 
                 ft.Divider(height=1, color="#333333"),
                 
-                # Lista expandida
                 ft.Container(content=lv_playlist, expand=True, bgcolor="#111111", border_radius=5)
             ], expand=True)
         )
