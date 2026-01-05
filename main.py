@@ -2,14 +2,14 @@ import flet as ft
 import traceback
 
 def main(page: ft.Page):
-    # Configuração inicial para garantir que a tela de erro funcione se necessário
+    # Configuração inicial 
     page.title = "Player Mobile"
     page.bgcolor = "black"
 
     try:
         # --- AQUI COMEÇA O SEU CÓDIGO (DENTRO DA PROTEÇÃO) ---
         
-        # 1. Importações sensíveis (Se falhar aqui, o erro aparece na tela)
+        # 1. Importações
         import yt_dlp
         import time
         import threading
@@ -50,20 +50,22 @@ def main(page: ft.Page):
             text_size=12, expand=True, height=40, content_padding=10, border_radius=20
         )
         
+        # CORREÇÃO 1: scroll="auto" em vez de ft.ScrollMode.AUTO
         lv_playlist = ft.ListView(expand=True, spacing=2, padding=5, auto_scroll=False)
 
         img_capa = ft.Image(
             src="https://img.icons8.com/fluency/240/music-record.png",
-            width=130, height=130, border_radius=10, fit=ft.ImageFit.COVER
+            width=130, height=130, border_radius=10, 
+            fit="cover" # CORREÇÃO 2: Usando string "cover" para evitar erro no Android
         )
 
-        lbl_titulo = ft.Text("Selecione ou Importe", weight="bold", size=14, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, text_align="center")
+        # CORREÇÃO 3: overflow="ellipsis"
+        lbl_titulo = ft.Text("Selecione ou Importe", weight="bold", size=14, no_wrap=True, overflow="ellipsis", text_align="center")
         lbl_status = ft.Text("Parado", size=11, color="grey", text_align="center")
         
         lbl_tempo_now = ft.Text("00:00", size=10)
         lbl_tempo_total = ft.Text("--:--", size=10)
         
-        # Definindo a função seek_audio antes de usar no slider
         def seek_audio(val): 
             try:
                 audio_player.seek(int(val))
@@ -71,7 +73,7 @@ def main(page: ft.Page):
 
         slider_tempo = ft.Slider(min=0, max=100, value=0, expand=True, height=10, on_change=lambda e: seek_audio(e.control.value))
 
-        # Funções placeholders para serem usadas no Audio
+        # Funções placeholders
         def atualizar_progresso(e):
             if is_playing:
                 try:
@@ -115,7 +117,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Row([
                             ft.Text(f"{i+1}.", size=10, color="grey"),
-                            ft.Text(titulo_exibicao, size=12, color="white", no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                            ft.Text(titulo_exibicao, size=12, color="white", no_wrap=True, overflow="ellipsis", expand=True),
                         ]),
                         expand=True,
                         on_click=lambda e, idx=i: tocar_index(idx)
@@ -193,7 +195,7 @@ def main(page: ft.Page):
         )
 
         def abrir_menu_trocar(e):
-            lista_opcoes = ft.Column(scroll=ft.ScrollMode.AUTO, height=200)
+            lista_opcoes = ft.Column(scroll="auto", height=200) # CORREÇÃO AQUI TB
             for nome in all_playlists.keys():
                 cor = "blue" if nome == current_playlist_name else "white"
                 btn = ft.TextButton(
@@ -394,7 +396,7 @@ def main(page: ft.Page):
         # --- FIM DO SEU CÓDIGO ---
 
     except Exception as e:
-        # TELA DA MORTE (Mas útil!)
+        # TELA DA MORTE (Mantemos para qualquer outro imprevisto)
         page.clean()
         page.bgcolor = "black"
         page.add(
@@ -404,7 +406,7 @@ def main(page: ft.Page):
                 ft.Divider(color="white"),
                 ft.Text("Detalhes técnicos:", color="yellow"),
                 ft.Text(traceback.format_exc(), size=10, color="yellow", font_family="monospace")
-            ], scroll=ft.ScrollMode.ALWAYS, expand=True)
+            ], scroll="auto", expand=True)
         )
         page.update()
 
