@@ -43,6 +43,7 @@ def main(page: ft.Page):
             snack_aviso.open = True
             page.update()
 
+        lbl_Andre0 = ft.Text("                                  ", color="grey", weight="bold", size=14, text_align="center")
         lbl_Andre = ft.Text("Player Mobile - André R. Custódio 😜", color="grey", weight="bold", size=14, text_align="center")
         
         lbl_nome_playlist = ft.Text(f"Playlist: {current_playlist_name}", size=12, color="blue200", weight="bold")
@@ -412,6 +413,7 @@ def main(page: ft.Page):
 
         page.add(
             ft.Column([
+                ft.Row([lbl_Andre0], alignment="center"),
                 ft.Row([lbl_Andre], alignment="center"),
                 ft.Row([txt_import_url, btn_import], alignment="center"),
                 ft.Row([lbl_nome_playlist], alignment="center"),
