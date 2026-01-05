@@ -12,29 +12,23 @@ class AudioController:
         self.playlist = []
         self.current_index = 0
         self.is_playing = False
-        self.is_shuffled = False
         self.audio_widget = self._criar_audio_widget()
         
-        # Injeta o audio na página de forma segura
+        # Injeta o audio na página (Overlay)
         if self.audio_widget:
             self.page.overlay.append(self.audio_widget)
-        else:
-            print("AVISO: Componente de Áudio não suportado nesta versão.")
 
     def _criar_audio_widget(self):
         try:
-            if hasattr(ft, 'Audio'):
-                return ft.Audio(
-                    autoplay=False,
-                    volume=1.0,
-                    on_position_changed=self._on_position_change,
-                    on_state_changed=self._on_state_change
-                )
+            return ft.Audio(
+                autoplay=False,
+                volume=1.0,
+                on_position_changed=self._on_position_change,
+                on_state_changed=self._on_state_change
+            )
         except: return None
-        return None
 
     def _on_position_change(self, e):
-        # Atualiza a UI via evento (mais leve)
         self.page.pubsub.send_all({"tipo": "progresso", "ms": int(e.data)})
 
     def _on_state_change(self, e):
@@ -81,14 +75,17 @@ class AudioController:
         self.current_index = index
         musica_raw = self.playlist[index]
         
-        # Notifica UI que mudou a música
+        # Pega título seguro
+        try:
+            titulo = musica_raw.split(" - ", 1)[1] if " - " in musica_raw else "Áudio"
+        except: titulo = "Áudio"
+
         self.page.pubsub.send_all({
             "tipo": "mudanca_faixa", 
             "index": index, 
-            "titulo": musica_raw.split(" - ", 1)[1] if " - " in musica_raw else "Áudio"
+            "titulo": titulo
         })
 
-        # Thread separada para buscar o link real (não trava o app)
         threading.Thread(target=self._obter_link_real, args=(musica_raw,), daemon=True).start()
 
     def _obter_link_real(self, musica_raw):
@@ -98,7 +95,7 @@ class AudioController:
                 'format': 'bestaudio',
                 'quiet': True,
                 'no_warnings': True,
-                'nocheckcertificate': True, # Ignora SSL para velocidade
+                'nocheckcertificate': True,
                 'noplaylist': True
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -106,9 +103,8 @@ class AudioController:
                 url_stream = info['url']
                 capa = info.get('thumbnail', "")
                 
-                # Atualiza Audio e Capa
                 self.carregar_audio(url_stream)
-                time.sleep(0.2) # Pequeno buffer
+                time.sleep(0.2)
                 self.play()
                 
                 self.page.pubsub.send_all({"tipo": "capa", "src": capa})
@@ -122,7 +118,6 @@ class AudioController:
 
     def adicionar_musicas(self, lista_novas):
         self.playlist.extend(lista_novas)
-        # Salva no banco local
         try:
             self.page.client_storage.set("playlist_v2", self.playlist)
         except: pass
@@ -134,14 +129,74 @@ class AudioController:
         except: pass
 
 # --- UI (INTERFACE VISUAL) ---
-class PlayerUI(ft.UserControl):
+# ATENÇÃO: Mudamos de UserControl para Column
+class PlayerUI(ft.Column):
     def __init__(self, page):
         super().__init__()
         self.page = page
+        self.expand = True # Ocupa a tela toda
         self.controller = AudioController(page)
         
-        # Inscreve para receber atualizações do Controller
+        # Inscreve para receber atualizações
         self.page.pubsub.subscribe(self.on_message)
+
+        # --- CRIAÇÃO DOS ELEMENTOS VISUAIS ---
+        self.img_capa = ft.Image(src="https://img.icons8.com/fluency/240/music-record.png", width=140, height=140, border_radius=10, fit="cover")
+        self.lbl_titulo = ft.Text("Selecione uma música", size=16, weight="bold", text_align="center")
+        self.lbl_status = ft.Text("Aguardando", size=12, color="grey", text_align="center")
+        self.lbl_tempo = ft.Text("00:00", size=10)
+        self.slider = ft.Slider(min=0, max=100, expand=True, height=20, on_change=lambda e: self.controller.seek(e.control.value))
+        
+        self.txt_url = ft.TextField(hint_text="Link YouTube", text_size=12, expand=True, height=45, border_radius=10, bgcolor="#222222", border_width=0)
+        self.btn_import = ft.IconButton(ft.Icons.DOWNLOAD_ROUNDED, icon_color="blue", bgcolor="#222222", on_click=self.acao_importar)
+        
+        # Controles
+        self.btn_prev = ft.IconButton(ft.Icons.SKIP_PREVIOUS_ROUNDED, icon_size=30, on_click=lambda e: self.controller.anterior())
+        self.btn_play = ft.IconButton(ft.Icons.PLAY_CIRCLE_FILLED_ROUNDED, icon_size=60, icon_color="blue", on_click=self.acao_play_pause)
+        self.btn_next = ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_size=30, on_click=lambda e: self.controller.proxima())
+        
+        # Lista
+        self.lista_view = ft.Column(spacing=2, scroll="auto")
+        self.container_lista = ft.Container(content=self.lista_view, expand=True, bgcolor="#0A0A0A", border_radius=15, padding=10)
+
+        # --- MONTAGEM DO LAYOUT ---
+        # Como herdamos de Column, definimos self.controls aqui
+        self.controls = [
+            ft.Container(height=10),
+            ft.Text("PLAYER PRO V3", size=12, weight="bold", color="blue", text_align="center"),
+            
+            # Área de Importação
+            ft.Container(
+                content=ft.Row([self.txt_url, self.btn_import]),
+                padding=10
+            ),
+            
+            # Área do Player
+            ft.Container(
+                content=ft.Column([
+                    ft.Row([self.img_capa], alignment="center"),
+                    ft.Container(height=5),
+                    self.lbl_titulo,
+                    self.lbl_status,
+                    ft.Row([self.lbl_tempo, self.slider], alignment="center"),
+                    ft.Row([self.btn_prev, self.btn_play, self.btn_next], alignment="center"),
+                ]),
+                padding=15,
+                bgcolor="#161616",
+                border_radius=20,
+                margin=10
+            ),
+            
+            ft.Divider(height=1, color="#333333"),
+            
+            # Lista de Músicas
+            ft.Text("  Sua Playlist:", size=12, color="grey"),
+            self.container_lista
+        ]
+
+        # Carregar dados iniciais
+        self.controller.carregar_memoria()
+        self.renderizar_lista()
 
     def on_message(self, message):
         tipo = message.get("tipo")
@@ -150,7 +205,6 @@ class PlayerUI(ft.UserControl):
             ms = message["ms"]
             self.slider.value = ms
             self.lbl_tempo.value = time.strftime('%M:%S', time.gmtime(ms // 1000))
-            # Ajuste dinâmico do max slider
             if self.slider.max == 100 and self.controller.audio_widget:
                 d = self.controller.audio_widget.get_duration()
                 if d: self.slider.max = d
@@ -177,10 +231,12 @@ class PlayerUI(ft.UserControl):
             self.lista_view.controls.append(ft.Text("Lista Vazia", color="grey", text_align="center"))
         
         for i, item in enumerate(self.controller.playlist):
-            titulo = item.split(" - ", 1)[1] if " - " in item else item
+            try:
+                titulo = item.split(" - ", 1)[1] if " - " in item else item
+            except: titulo = item
+            
             eh_atual = (i == self.controller.current_index)
             
-            # Design Moderno de Item
             item_ui = ft.Container(
                 content=ft.Row([
                     ft.Icon(ft.Icons.EQUALIZER if eh_atual else ft.Icons.MUSIC_NOTE, 
@@ -249,75 +305,20 @@ class PlayerUI(ft.UserControl):
 
         threading.Thread(target=tarefa_bg, daemon=True).start()
 
-    def build(self):
-        # Componentes UI
-        self.img_capa = ft.Image(src="https://img.icons8.com/fluency/240/music-record.png", width=140, height=140, border_radius=10, fit="cover")
-        self.lbl_titulo = ft.Text("Selecione uma música", size=16, weight="bold", text_align="center")
-        self.lbl_status = ft.Text("Aguardando", size=12, color="grey", text_align="center")
-        self.lbl_tempo = ft.Text("00:00", size=10)
-        self.slider = ft.Slider(min=0, max=100, expand=True, height=20, on_change=lambda e: self.controller.seek(e.control.value))
-        
-        self.txt_url = ft.TextField(hint_text="Link YouTube/Playlist", text_size=12, expand=True, height=45, border_radius=10, bgcolor="#222222", border_width=0)
-        self.btn_import = ft.IconButton(ft.Icons.DOWNLOAD_ROUNDED, icon_color="blue", bgcolor="#222222", on_click=self.acao_importar)
-        
-        # Controles
-        self.btn_prev = ft.IconButton(ft.Icons.SKIP_PREVIOUS_ROUNDED, icon_size=30, on_click=lambda e: self.controller.anterior())
-        self.btn_play = ft.IconButton(ft.Icons.PLAY_CIRCLE_FILLED_ROUNDED, icon_size=60, icon_color="blue", on_click=self.acao_play_pause)
-        self.btn_next = ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_size=30, on_click=lambda e: self.controller.proxima())
-        
-        # Lista
-        self.lista_view = ft.Column(spacing=2, scroll="auto")
-        container_lista = ft.Container(content=self.lista_view, expand=True, bgcolor="#0A0A0A", border_radius=15, padding=10)
-
-        # Carregar dados iniciais
-        self.controller.carregar_memoria()
-        self.renderizar_lista()
-
-        # Layout Final Montado
-        return ft.Column([
-            ft.Container(height=10),
-            ft.Text("PLAYER PRO V3", size=12, weight="bold", color="blue", text_align="center"),
-            
-            # Área de Importação
-            ft.Container(
-                content=ft.Row([self.txt_url, self.btn_import]),
-                padding=10
-            ),
-            
-            # Área do Player (Capa e Controles)
-            ft.Container(
-                content=ft.Column([
-                    ft.Row([self.img_capa], alignment="center"),
-                    ft.Container(height=5),
-                    self.lbl_titulo,
-                    self.lbl_status,
-                    ft.Row([self.lbl_tempo, self.slider], alignment="center"),
-                    ft.Row([self.btn_prev, self.btn_play, self.btn_next], alignment="center"),
-                ]),
-                padding=15,
-                bgcolor="#161616",
-                border_radius=20,
-                margin=10
-            ),
-            
-            ft.Divider(height=1, color="#333333"),
-            
-            # Lista de Músicas
-            ft.Text("  Sua Playlist:", size=12, color="grey"),
-            container_lista
-        ], expand=True)
-
 def main(page: ft.Page):
     page.title = "Player Pro"
     page.bgcolor = "black"
     page.theme_mode = "dark"
     page.padding = 0
+    # Ajuste para telas mobile
     page.window_width = 390
     page.window_height = 800
     
-    # Instancia o App e adiciona na página
-    app = PlayerUI(page)
-    page.add(app)
+    try:
+        app = PlayerUI(page)
+        page.add(app)
+    except Exception as e:
+        page.add(ft.Text(f"Erro Fatal: {e}", color="red"))
 
 if __name__ == "__main__":
     ft.app(target=main)
