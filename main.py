@@ -2,10 +2,11 @@ import flet as ft
 import traceback
 
 def main(page: ft.Page):
-    # Configuração inicial "blindada"
+    # Configuração inicial "blindada" para versões antigas
     page.title = "Player Mobile"
     page.bgcolor = "black"
-    page.scroll = "auto" # Usando string para evitar erro de versão
+    # Proteção: scroll como string
+    page.scroll = "auto" 
 
     try:
         # --- AQUI COMEÇA O SEU CÓDIGO (DENTRO DA PROTEÇÃO) ---
@@ -19,7 +20,7 @@ def main(page: ft.Page):
         # --- 2. Configurações da Janela ---
         page.window_width = 390
         page.window_height = 700
-        page.theme_mode = "dark" # Usando string "dark"
+        page.theme_mode = "dark"
         page.padding = 5
         
         # --- 3. Variáveis de Estado Globais ---
@@ -51,23 +52,26 @@ def main(page: ft.Page):
             text_size=12, expand=True, height=40, content_padding=10, border_radius=20
         )
         
-        # CORREÇÃO CRÍTICA 1: scroll="auto" (texto)
+        # Proteção: auto_scroll falso e sem enum
         lv_playlist = ft.ListView(expand=True, spacing=2, padding=5, auto_scroll=False)
 
-        # CORREÇÃO CRÍTICA 2: fit="cover" (texto)
+        # Proteção: fit="cover" como string
         img_capa = ft.Image(
             src="https://img.icons8.com/fluency/240/music-record.png",
             width=130, height=130, border_radius=10, 
             fit="cover" 
         )
 
-        # CORREÇÃO CRÍTICA 3: overflow="ellipsis" (texto)
         lbl_titulo = ft.Text("Selecione ou Importe", weight="bold", size=14, no_wrap=True, overflow="ellipsis", text_align="center")
         lbl_status = ft.Text("Parado", size=11, color="grey", text_align="center")
         
         lbl_tempo_now = ft.Text("00:00", size=10)
         lbl_tempo_total = ft.Text("--:--", size=10)
         
+        # --- SISTEMA DE ÁUDIO SEGURO ---
+        # Variável global para o player
+        audio_player = None
+
         def seek_audio(val): 
             try:
                 if audio_player:
@@ -76,10 +80,6 @@ def main(page: ft.Page):
 
         slider_tempo = ft.Slider(min=0, max=100, value=0, expand=True, height=10, on_change=lambda e: seek_audio(e.control.value))
 
-        # --- CORREÇÃO CRÍTICA 4: Áudio Seguro ---
-        # Isso impede o erro "has no attribute Audio" de travar o app
-        audio_player = None
-        
         def atualizar_progresso(e):
             if is_playing and audio_player:
                 try:
@@ -92,12 +92,13 @@ def main(page: ft.Page):
                         lbl_tempo_total.value = time.strftime('%M:%S', time.gmtime(dur // 1000))
                 except: pass
                 page.update()
-
+        
         def verificar_fim(e):
             if e.data == "completed": proxima(None)
 
-        # Tenta criar o player de áudio. Se falhar, o app abre mesmo assim.
+        # Tentativa segura de criar o Áudio
         try:
+            # Verifica se ft.Audio existe na versão instalada
             if hasattr(ft, 'Audio'):
                 audio_player = ft.Audio(
                     src="https://luan.xyz/files/audio/ambient_c_motion.mp3", 
@@ -107,10 +108,9 @@ def main(page: ft.Page):
                 )
                 page.overlay.append(audio_player)
             else:
-                # Tenta usar Video oculto como fallback se Audio não existir (truque antigo)
-                mostrar_aviso("Aviso: Seu Flet é antigo. Áudio pode falhar.", "orange")
-        except Exception as err_audio:
-            print("Erro ao criar audio:", err_audio)
+                mostrar_aviso("SEU APP ESTÁ DESATUALIZADO (Sem Áudio)", "red")
+        except:
+            print("Erro ao iniciar áudio")
 
         # --- 5. Lógica Principal ---
 
@@ -127,6 +127,7 @@ def main(page: ft.Page):
 
                 cor_fundo = "blue" if i == current_index and is_playing else "#222222"
                 
+                # Proteção: alinhamento como string
                 conteudo_item = ft.Row([
                     ft.Container(
                         content=ft.Row([
@@ -137,7 +138,7 @@ def main(page: ft.Page):
                         on_click=lambda e, idx=i: tocar_index(idx)
                     ),
                     ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="red400", icon_size=18, on_click=lambda e, idx=i: remover_musica(idx))
-                ], alignment="spaceBetween") # String em vez de Enum
+                ], alignment="spaceBetween") 
 
                 btn_item = ft.Container(content=conteudo_item, padding=ft.padding.only(left=10, right=0, top=2, bottom=2), bgcolor=cor_fundo, border_radius=5)
                 lv_playlist.controls.append(btn_item)
@@ -213,12 +214,12 @@ def main(page: ft.Page):
         )
 
         def abrir_menu_trocar(e):
-            lista_opcoes = ft.Column(scroll="auto", height=200) 
+            lista_opcoes = ft.Column(scroll="auto", height=200)
             for nome in all_playlists.keys():
                 cor = "blue" if nome == current_playlist_name else "white"
+                # Botão simples para evitar erros de estilo
                 btn = ft.TextButton(
-                    text=f"{nome} ({len(all_playlists[nome])} músicas)", 
-                    style=ft.ButtonStyle(color=cor),
+                    text=f"{nome} ({len(all_playlists[nome])})", 
                     on_click=lambda e, n=nome: mudar_para_playlist(n)
                 )
                 lista_opcoes.controls.append(btn)
@@ -249,7 +250,7 @@ def main(page: ft.Page):
             content=ft.Text("Isso apagará todas as músicas desta playlist."),
             actions=[
                 ft.TextButton("Não", on_click=lambda e: page.close(dlg_apagar)),
-                ft.TextButton("Sim, Apagar", on_click=apagar_playlist_atual, style=ft.ButtonStyle(color="red")),
+                ft.TextButton("Sim, Apagar", on_click=apagar_playlist_atual), # Removi style complexo
             ]
         )
 
@@ -329,7 +330,7 @@ def main(page: ft.Page):
             def extrair():
                 nonlocal is_playing
                 if not audio_player:
-                    mostrar_aviso("ERRO FATAL: Componente de Áudio não existe nesta versão do app.", "red")
+                    mostrar_aviso("ERRO: Áudio indisponível.", "red")
                     return
 
                 try:
@@ -388,13 +389,24 @@ def main(page: ft.Page):
         btn_back_10 = ft.IconButton(ft.Icons.REPLAY_10, on_click=lambda e: pular_tempo(-10), icon_size=20)
         btn_fwd_10 = ft.IconButton(ft.Icons.FORWARD_10, on_click=lambda e: pular_tempo(10), icon_size=20)
 
+        # CORREÇÃO PRINCIPAL: Menu Popup Compatível com Versões Antigas
+        # Usamos 'content' em vez de 'text' e 'icon'
         btn_menu = ft.PopupMenuButton(
             icon=ft.Icons.MORE_VERT,
-            tooltip="Gerenciar Playlists",
+            tooltip="Opções",
             items=[
-                ft.PopupMenuItem(text="Trocar Playlist", icon=ft.Icons.LIBRARY_MUSIC, on_click=abrir_menu_trocar),
-                ft.PopupMenuItem(text="Nova Playlist", icon=ft.Icons.ADD_BOX, on_click=lambda e: page.open(dlg_nova)),
-                ft.PopupMenuItem(text="Apagar Playlist Atual", icon=ft.Icons.DELETE_FOREVER, on_click=lambda e: page.open(dlg_apagar)),
+                ft.PopupMenuItem(
+                    content=ft.Row([ft.Icon(ft.Icons.LIBRARY_MUSIC), ft.Text("Trocar Playlist")]),
+                    on_click=abrir_menu_trocar
+                ),
+                ft.PopupMenuItem(
+                    content=ft.Row([ft.Icon(ft.Icons.ADD_BOX), ft.Text("Nova Playlist")]),
+                    on_click=lambda e: page.open(dlg_nova)
+                ),
+                ft.PopupMenuItem(
+                    content=ft.Row([ft.Icon(ft.Icons.DELETE_FOREVER), ft.Text("Apagar Playlist")]),
+                    on_click=lambda e: page.open(dlg_apagar)
+                ),
             ]
         )
 
@@ -424,15 +436,13 @@ def main(page: ft.Page):
         # --- FIM DO SEU CÓDIGO ---
 
     except Exception as e:
-        # TELA DA MORTE (Mantemos para qualquer outro imprevisto)
         page.clean()
         page.bgcolor = "black"
         page.add(
             ft.Column([
-                ft.Text("ERRO FATAL ENCONTRADO:", size=20, weight="bold", color="red"),
+                ft.Text("ERRO FATAL (Ainda!)", size=20, weight="bold", color="red"),
                 ft.Text(f"Erro: {str(e)}", size=16, color="white"),
                 ft.Divider(color="white"),
-                ft.Text("Detalhes técnicos:", color="yellow"),
                 ft.Text(traceback.format_exc(), size=10, color="yellow", font_family="monospace")
             ], scroll="auto", expand=True)
         )
