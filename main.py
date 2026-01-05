@@ -16,13 +16,19 @@ class AudioController:
         # Injeta o audio na página (Overlay)
         if self.audio_widget:
             self.page.overlay.append(self.audio_widget)
+            # Removemos o update() daqui para evitar erro de inicialização
             try:
                 self.page.update()
             except: pass
 
     def _criar_audio_widget(self):
-        # Tenta criar o componente de áudio de forma segura
         try:
+            # Tenta criar o componente Audio
+            # Se der erro de atributo, retornamos None para não fechar o app
+            if not hasattr(ft, "Audio"):
+                print("ERRO CRÍTICO: Componente Audio não encontrado no Flet!")
+                return None
+                
             return ft.Audio(
                 autoplay=False,
                 volume=1.0,
@@ -136,14 +142,13 @@ class AudioController:
 class PlayerUI(ft.Column):
     def __init__(self, page):
         super().__init__()
-        # CORREÇÃO CRÍTICA: Usamos self.pg para não conflitar com o Flet
         self.pg = page 
         self.expand = True 
         self.controller = AudioController(self.pg)
         
         self.pg.pubsub.subscribe(self.on_message)
 
-        # Imagem com correção de 'fit' (string simples evita erro de ImageFit)
+        # Imagem segura (fit string)
         self.img_capa = ft.Image(
             src="https://img.icons8.com/fluency/240/music-record.png", 
             width=140, height=140, 
@@ -202,6 +207,9 @@ class PlayerUI(ft.Column):
     def on_message(self, message):
         tipo = message.get("tipo")
         
+        # Só atualiza se o elemento já estiver na página
+        if not self.slider.page: return
+
         if tipo == "progresso":
             ms = message["ms"]
             self.slider.value = ms
@@ -254,7 +262,10 @@ class PlayerUI(ft.Column):
                 on_click=lambda e, x=i: self.controller.tocar_index(x)
             )
             self.lista_view.controls.append(item_ui)
-        self.lista_view.update()
+        
+        # CORREÇÃO CRÍTICA: Só chama update se a lista já estiver desenhada na tela
+        if self.lista_view.page:
+            self.lista_view.update()
 
     def remover_item(self, index):
         if 0 <= index < len(self.controller.playlist):
@@ -295,6 +306,8 @@ class PlayerUI(ft.Column):
                         novas.append(f"{info.get('webpage_url')} - {info.get('title')}")
                     
                     self.controller.adicionar_musicas(novas)
+                    
+                    # Como isso roda em outra thread, o update será chamado lá dentro
                     self.renderizar_lista()
                     self.pg.pubsub.send_all({"tipo": "status", "texto": f"{len(novas)} adicionadas!"})
             except Exception as err:
@@ -311,7 +324,6 @@ def main(page: ft.Page):
     page.bgcolor = "black"
     page.theme_mode = "dark"
     page.padding = 0
-    # Ajuste para telas mobile
     page.window_width = 390
     page.window_height = 800
     
