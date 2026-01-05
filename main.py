@@ -16,17 +16,13 @@ class AudioController:
         # Injeta o audio na página (Overlay)
         if self.audio_widget:
             self.page.overlay.append(self.audio_widget)
-            # Removemos o update() daqui para evitar erro de inicialização
-            try:
-                self.page.update()
-            except: pass
+            # REMOVIDO: self.page.update() 
+            # (Não atualizamos a página aqui para evitar erro de inicialização)
 
     def _criar_audio_widget(self):
         try:
-            # Tenta criar o componente Audio
-            # Se der erro de atributo, retornamos None para não fechar o app
+            # Verifica se o componente Audio existe no Flet atual
             if not hasattr(ft, "Audio"):
-                print("ERRO CRÍTICO: Componente Audio não encontrado no Flet!")
                 return None
                 
             return ft.Audio(
@@ -35,12 +31,13 @@ class AudioController:
                 on_position_changed=self._on_position_change,
                 on_state_changed=self._on_state_change
             )
-        except Exception as e:
-            print(f"Erro ao criar Audio: {e}")
+        except:
             return None
 
     def _on_position_change(self, e):
-        self.page.pubsub.send_all({"tipo": "progresso", "ms": int(e.data)})
+        # Envia atualização apenas se a página estiver ativa
+        if self.page:
+            self.page.pubsub.send_all({"tipo": "progresso", "ms": int(e.data)})
 
     def _on_state_change(self, e):
         if e.data == "completed":
@@ -148,7 +145,7 @@ class PlayerUI(ft.Column):
         
         self.pg.pubsub.subscribe(self.on_message)
 
-        # Imagem segura (fit string)
+        # Imagem com correção de segurança para evitar erro ImageFit
         self.img_capa = ft.Image(
             src="https://img.icons8.com/fluency/240/music-record.png", 
             width=140, height=140, 
@@ -201,22 +198,25 @@ class PlayerUI(ft.Column):
             self.container_lista
         ]
 
+        # Carregar dados
         self.controller.carregar_memoria()
         self.renderizar_lista()
 
     def on_message(self, message):
-        tipo = message.get("tipo")
-        
-        # Só atualiza se o elemento já estiver na página
+        # SEGURANÇA: Se o componente não estiver na tela, para aqui.
         if not self.slider.page: return
 
+        tipo = message.get("tipo")
+        
         if tipo == "progresso":
             ms = message["ms"]
             self.slider.value = ms
             self.lbl_tempo.value = time.strftime('%M:%S', time.gmtime(ms // 1000))
             if self.slider.max == 100 and self.controller.audio_widget:
-                d = self.controller.audio_widget.get_duration()
-                if d: self.slider.max = d
+                try:
+                    d = self.controller.audio_widget.get_duration()
+                    if d: self.slider.max = d
+                except: pass
             self.update()
             
         elif tipo == "mudanca_faixa":
@@ -263,7 +263,8 @@ class PlayerUI(ft.Column):
             )
             self.lista_view.controls.append(item_ui)
         
-        # CORREÇÃO CRÍTICA: Só chama update se a lista já estiver desenhada na tela
+        # --- SEGURANÇA CRÍTICA ---
+        # Só atualiza a lista se ela JÁ estiver desenhada na tela
         if self.lista_view.page:
             self.lista_view.update()
 
@@ -307,7 +308,7 @@ class PlayerUI(ft.Column):
                     
                     self.controller.adicionar_musicas(novas)
                     
-                    # Como isso roda em outra thread, o update será chamado lá dentro
+                    # Como roda em background, aqui a página já existe, então o update funciona
                     self.renderizar_lista()
                     self.pg.pubsub.send_all({"tipo": "status", "texto": f"{len(novas)} adicionadas!"})
             except Exception as err:
@@ -315,7 +316,7 @@ class PlayerUI(ft.Column):
             
             self.btn_import.disabled = False
             self.txt_url.value = ""
-            self.update()
+            if self.txt_url.page: self.update()
 
         threading.Thread(target=tarefa_bg, daemon=True).start()
 
