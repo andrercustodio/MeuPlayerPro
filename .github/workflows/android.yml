@@ -13,10 +13,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # Mudamos para o Java Zulu que é mais estável para Android
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
+        distribution: 'zulu'
         java-version: '17'
 
     - name: Setup Python
@@ -40,8 +41,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Build APK with Flet
+      # Adicionei --include-packages para garantir que o Flet empacote tudo
       run: |
-        flet build apk --verbose
+        flet build apk --verbose --include-packages flet,yt-dlp,certifi
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
